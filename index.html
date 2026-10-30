@@ -1000,9 +1000,13 @@ function btChart(n){
   }));
   const spread = Math.max(...act)-Math.min(...act);
   const se = Math.sqrt(th.rate*(1-th.rate)/bt.n)*100;
+  /* 判据要把线本身印出来：五列的「拉开」最坏能顶到两条误差带相加，只报单条 ±
+     的话，样本一翻倍就会出现「拉开 0.87% > ±0.86%」却仍写「分不开」——数字看着打脸。 */
+  const cut = 1.96*se*2;
   $('btNote').textContent = '回测 '+fmt(bt.n)+' 期（'+ROWS[bt.from].code+' 起）· 6 码池纯运气命中 '+pc(th.rate)
     +'，这个样本量的抽样误差 ±'+(1.96*se).toFixed(2)+'%（95%）· 五列实际拉开 '+spread.toFixed(2)+'%'
-    + (spread>1.96*se*2 ? ' —— 大于误差带，值得再看是哪套策略、哪几期' : ' —— 全在误差带里，分不开');
+    + (spread>cut ? ' —— 越过了分得开的线（两带相加 '+cut.toFixed(2)+'%），值得再看是哪套策略、哪几期'
+                  : ' —— 没越过那条线（两带相加 '+cut.toFixed(2)+'%），分不开');
 
   const line = Core.rolling(bt, 200, 50);
   draw('BtLine', baseOpts({
