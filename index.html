@@ -114,6 +114,9 @@ h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;letter-spacing:.05em;line-he
 
 /* ---------- 面板 ---------- */
 .grid2{display:grid;grid-template-columns:1.5fr 1fr;gap:16px}
+/* 格子里的 min-width:auto 会照着里面那张 842 宽的算钱表把整列顶开，
+   「表格比屏幕宽、左右拖动看全」就变成整页被裁掉一截 —— 必须让它能缩到列宽 */
+.grid2>.panel{min-width:0}
 .grid2 .wide{grid-column:1 / -1}
 @media(max-width:1024px){.grid2{grid-template-columns:1fr}}
 .panel{padding:20px;border-radius:var(--r);background:var(--glass);border:1px solid var(--line);
