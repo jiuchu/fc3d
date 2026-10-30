@@ -189,6 +189,9 @@ td .b2{display:inline-grid}
 .dt-bar .btn{padding:8px 14px;font-size:.78rem;border-radius:10px;font-weight:500;letter-spacing:0;
   background:var(--glass);border-color:var(--line);color:var(--dim)}
 .dt-bar .btn:hover{transform:none;box-shadow:none;border-color:rgba(255,200,97,.55);color:var(--txt)}
+/* 筛选按钮按下去常亮：它和「上一页」长得一样，不亮就分不出现在看的是全档案还是筛过的 */
+.dt-bar .btn.on{background:rgba(255,200,97,.16);border-color:rgba(255,200,97,.62);color:var(--gold);font-weight:600}
+.dt-bar .btn.on:hover{color:var(--gold)}
 .inp{background:var(--glass);border:1px solid var(--line);border-radius:10px;color:var(--txt);
   padding:8px 12px;font-size:.79rem;font-family:inherit;min-width:224px;max-width:100%}
 .inp:focus{outline:none;border-color:rgba(255,200,97,.55)}
@@ -382,9 +385,10 @@ footer a:hover{filter:brightness(1.14);transform:translateY(-1px)}
     </div>
     <div class="panel wide nav-t" id="sec-detail">
       <div class="p-head"><div class="p-title"><i></i>逐期明细</div></div>
-      <div class="p-note">金球 = 这期的号码落在该策略的 6 码池里；中间那行是「三个号码是否全在池中」；最下面那 5 个三位数是这套策略在开奖之前押的 5 注直选，撞上的那注标金色；最后一列汇总哪套押中、中的是哪一注 · 默认最近 20 期，输期号（如 2026100）或号码（如 612）只列匹配的行</div>
+      <div class="p-note">金球 = 这期的号码落在该策略的 6 码池里；中间那行是「三个号码是否全在池中」；最下面那 5 个三位数是这套策略在开奖之前押的 5 注直选，撞上的那注标金色；最后一列汇总哪套押中、中的是哪一注 · 默认最近 20 期，输期号（如 2026100）或号码（如 612）只列匹配的行 · 「只看直选命中」把整张表筛到至少一套押中的期</div>
       <div class="dt-bar">
         <input class="inp" id="dtQ" type="search" placeholder="搜期号或号码，如 2026100 或 612" autocomplete="off" aria-label="搜期号或号码">
+        <button class="btn" id="dtOnly" type="button" aria-pressed="false" title="只列至少有一套策略直选押中的期">只看直选命中</button>
         <span class="seg" id="dtSize" role="group" aria-label="每页期数">
           <span class="sg-lab">每页</span>
           <button class="sg on" data-n="20" type="button">20 期</button>
@@ -1076,17 +1080,23 @@ function btChart(n){
 }
 function f1(x){ return (Math.round(x*10)/10).toFixed(1); }
 
-/* ---------- 逐期明细：搜索 + 每页 N 期 + 翻页 ---------- */
-const DT = {q:'', page:0, size:20};
+/* ---------- 逐期明细：搜索 + 只看直选命中 + 每页 N 期 + 翻页 ---------- */
+const DT = {q:'', page:0, size:20, only:false};
+
+/* 「直选命中」= 至少一套策略押的 5 注里有和开奖号三位全对的那一注。
+   末列汇总和列表筛选共用这一只判据。 */
+const directHit = r => Core.STRATS.some(s=> r.hitD[s.k]);
 
 function detailTable(){
-  const res = Core.pageDetail(BTFULL.detail, DT.q, DT.page, DT.size);
+  const src = DT.only ? BTFULL.detail.filter(directHit) : BTFULL.detail;
+  const res = Core.pageDetail(src, DT.q, DT.page, DT.size);
   DT.page = res.page;
   $('btHead').innerHTML = '<th>期号</th><th>开奖</th><th>形态</th>'
     + Core.STRATS.map(s=>'<th>'+s.n+'</th>').join('') + '<th>直选命中</th>';
   if(!res.rows.length){
-    $('btBody').innerHTML = '<tr><td colspan="'+(4+Core.STRATS.length)+'" class="dt-none">没有期号或号码里含「'
-      + esc(DT.q)+'」的记录</td></tr>';
+    const why = DT.q ? '没有期号或号码里含「'+esc(DT.q)+'」的记录'
+                     : (DT.only ? '全档案里没有直选命中的期' : '档案里还没有可列出的期');
+    $('btBody').innerHTML = '<tr><td colspan="'+(4+Core.STRATS.length)+'" class="dt-none">'+why+'</td></tr>';
   } else {
     $('btBody').innerHTML = res.rows.map(r=>{
       const w = r.num.split('').map(Number);
@@ -1101,9 +1111,11 @@ function detailTable(){
         + '<td class="mk '+(who.length?'y':'n')+'">'+(who.length?who.join(' / ')+' · '+r.num:'—')+'</td></tr>';
     }).join('');
   }
-  $('dtInfo').textContent = '共 '+fmt(res.total)+' 期'
-    + (DT.q ? '（匹配「'+DT.q+'」）' : '（全档案，从新到旧）')
-    + ' · 第 '+(res.page+1)+' / '+res.pages+' 页';
+  const bits = [];
+  if(DT.only) bits.push('只看直选命中');
+  if(DT.q) bits.push('匹配「'+DT.q+'」');
+  if(!bits.length) bits.push('全档案，从新到旧');
+  $('dtInfo').textContent = '共 '+fmt(res.total)+' 期（'+bits.join(' · ')+'） · 第 '+(res.page+1)+' / '+res.pages+' 页';
   $('dtPrev').disabled = res.page <= 0;
   $('dtNext').disabled = res.page >= res.pages - 1;
 }
@@ -1212,6 +1224,12 @@ $('btTabs').addEventListener('click', e=>{
   btChart(+b.dataset.n);
 });
 $('dtQ').addEventListener('input', e=>{ DT.q=e.target.value; DT.page=0; detailTable(); });
+$('dtOnly').addEventListener('click', e=>{
+  DT.only = !DT.only; DT.page = 0;
+  e.currentTarget.classList.toggle('on', DT.only);
+  e.currentTarget.setAttribute('aria-pressed', DT.only ? 'true' : 'false');
+  detailTable();
+});
 $('dtSize').addEventListener('click', e=>{
   const b=e.target.closest('.sg'); if(!b) return;
   [...$('dtSize').querySelectorAll('.sg')].forEach(x=>x.classList.toggle('on', x===b));
