@@ -11,14 +11,15 @@
   --ink:#05060b; --ink-2:#0a0c15;
   --glass:rgba(255,255,255,.045); --glass-hi:rgba(255,255,255,.09);
   --line:rgba(255,255,255,.09);
-  --txt:#f4f6fc; --dim:#adb6cd; --dimmer:#8e97b0;
+  --txt:#f4f6fc; --dim:#adb6cd; --dimmer:#9aa4bd;
   --gold:#ffc861; --ember:#ff5f43; --ball:#e0271f;
   --blue:#4f9dff; --ok:#3ddc97; --warn:#ffb020; --bad:#ff5c5c;
   --r:18px; --shadow:0 18px 50px -18px rgba(0,0,0,.85);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
-body{background:var(--ink);color:var(--txt);min-height:100vh;overflow-x:hidden;line-height:1.5;
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+/* overflow-x 用 clip 不用 hidden：hidden 会把 body 变成滚动容器，粘性导航就不粘了 */
+body{background:var(--ink);color:var(--txt);min-height:100vh;overflow-x:clip;line-height:1.5;
   font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif}
 .serif{font-family:"Songti SC","STSong","SimSun","Noto Serif SC",serif}
 
@@ -33,6 +34,16 @@ body{background:var(--ink);color:var(--txt);min-height:100vh;overflow-x:hidden;l
 @keyframes tw{0%,100%{opacity:.12;transform:scale(.6)}50%{opacity:.85;transform:scale(1.25)}}
 
 .wrap{max-width:1320px;margin:0 auto;padding:26px 20px 60px}
+
+/* ---------- 页内锚点导航 ---------- */
+.nav{position:sticky;top:10px;z-index:40;display:flex;flex-wrap:wrap;gap:4px;align-items:center;
+  margin:0 0 20px;padding:6px;border:1px solid var(--line);border-radius:999px;
+  background:rgba(10,12,20,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.nav a{font-size:.78rem;color:var(--dim);text-decoration:none;padding:7px 13px;border-radius:999px;
+  white-space:nowrap;transition:color .15s,background .15s}
+.nav a:hover{color:var(--txt);background:var(--glass-hi)}
+.nav a.on{color:var(--gold);background:rgba(255,200,97,.14)}
+.nav-t{scroll-margin-top:var(--navh,74px)}
 
 /* ---------- hero ---------- */
 .hero{position:relative;display:flex;gap:28px;align-items:flex-end;flex-wrap:wrap;
@@ -175,7 +186,17 @@ td .b2{display:inline-grid}
 .inp{background:var(--glass);border:1px solid var(--line);border-radius:10px;color:var(--txt);
   padding:8px 12px;font-size:.79rem;font-family:inherit;min-width:224px;max-width:100%}
 .inp:focus{outline:none;border-color:rgba(255,200,97,.55)}
-select.inp{min-width:auto;cursor:pointer}
+.inp::placeholder{color:var(--dim);opacity:1}
+/* 「每页 N 期」原来是 <select>：展开那层是系统画的，--glass 半透明压到系统白底上
+   就成了浅字压白底（10-30 他截图里那三条几乎看不见）。改成页内自绘的分段按钮，
+   颜色由 CSS 说了算，浏览器换哪家都不会再被系统弹层吃掉。 */
+.seg{display:inline-flex;align-items:center;gap:2px;background:var(--glass);
+  border:1px solid var(--line);border-radius:10px;padding:2px}
+.seg .sg-lab{font-size:.72rem;color:var(--dim);padding:0 4px 0 8px;white-space:nowrap}
+.seg .sg{appearance:none;border:0;background:transparent;color:var(--dim);font:inherit;
+  font-size:.76rem;padding:6px 10px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.seg .sg:hover{color:var(--txt)}
+.seg .sg.on{background:rgba(255,200,97,.16);color:var(--gold);font-weight:500}
 .dt-info{font-size:.76rem;color:var(--dimmer);max-width:100%}
 .dt-none{text-align:center;color:var(--dimmer);padding:18px 0;font-size:.8rem}
 .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.28);
@@ -267,7 +288,11 @@ footer a:hover{filter:brightness(1.14);transform:translateY(-1px)}
     </div>
   </section>
 
-  <div class="sec-title"><span>本期推荐</span> 四套统计策略 + 一条随机基线</div>
+  <nav class="nav" id="topnav" aria-label="页内导航">
+    <a href="#sec-pick">本期推荐</a><a href="#sec-trend">数据趋势</a><a href="#sec-bt">策略回测</a><a href="#sec-detail">逐期明细</a><a href="#sec-prize">奖金规则</a>
+  </nav>
+
+  <div class="sec-title nav-t" id="sec-pick"><span>本期推荐</span> 四套统计策略 + 一条随机基线</div>
   <div class="kpi" id="planGrid"></div>
   <div class="notice">
     每个格子里的号码都是<b>用同一份开奖历史现算出来的</b>，口径写在卡片上，你自己在下面「策略回测」里可以逐期核对。
@@ -277,7 +302,7 @@ footer a:hover{filter:brightness(1.14);transform:translateY(-1px)}
     同一个数字在同一位次上最多占两注；号码相同的两列会明写「撞上了」，不装成两套结果。
   </div>
 
-  <div class="sec-title"><span>数据趋势</span></div>
+  <div class="sec-title nav-t" id="sec-trend"><span>数据趋势</span></div>
   <div class="grid2">
     <div class="panel">
       <div class="p-head">
@@ -321,7 +346,7 @@ footer a:hover{filter:brightness(1.14);transform:translateY(-1px)}
     </div>
   </div>
 
-  <div class="sec-title"><span>策略回测</span> 每期只用它之前开过的号码算</div>
+  <div class="sec-title nav-t" id="sec-bt"><span>策略回测</span> 每期只用它之前开过的号码算</div>
   <div class="grid2">
     <div class="panel">
       <div class="p-head">
@@ -349,17 +374,18 @@ footer a:hover{filter:brightness(1.14);transform:translateY(-1px)}
         <th>投入</th><th>返奖</th><th>净盈亏</th><th>返还率</th>
       </tr></thead><tbody id="btMoney"></tbody></table></div>
     </div>
-    <div class="panel wide">
+    <div class="panel wide nav-t" id="sec-detail">
       <div class="p-head"><div class="p-title"><i></i>逐期明细</div></div>
       <div class="p-note">金球 = 这期的号码落在该策略的 6 码池里；每列下面那行是「三个号码是否全在池中」，最后一列写的是哪套策略的 5 注直选真撞上了 · 默认最近 20 期，输期号（如 2026100）或号码（如 612）只列匹配的行</div>
       <div class="dt-bar">
         <input class="inp" id="dtQ" type="search" placeholder="搜期号或号码，如 2026100 或 612" autocomplete="off" aria-label="搜期号或号码">
-        <select class="inp" id="dtSize" aria-label="每页期数">
-          <option value="20">每页 20 期</option>
-          <option value="50">每页 50 期</option>
-          <option value="100">每页 100 期</option>
-          <option value="500">每页 500 期</option>
-        </select>
+        <span class="seg" id="dtSize" role="group" aria-label="每页期数">
+          <span class="sg-lab">每页</span>
+          <button class="sg on" data-n="20" type="button">20 期</button>
+          <button class="sg" data-n="50" type="button">50 期</button>
+          <button class="sg" data-n="100" type="button">100 期</button>
+          <button class="sg" data-n="500" type="button">500 期</button>
+        </span>
         <button class="btn" id="dtPrev">上一页</button>
         <span class="dt-info" id="dtInfo">—</span>
         <button class="btn" id="dtNext">下一页</button>
@@ -369,7 +395,7 @@ footer a:hover{filter:brightness(1.14);transform:translateY(-1px)}
     </div>
   </div>
 
-  <div class="sec-title"><span>奖金规则与返还率</span></div>
+  <div class="sec-title nav-t" id="sec-prize"><span>奖金规则与返还率</span></div>
   <div class="grid2">
     <div class="panel">
       <div class="p-head"><div class="p-title"><i></i>三种主玩法</div></div>
@@ -1141,6 +1167,18 @@ async function load(first){
     heatChart(0); missChart(); mixChart('sum'); shapeChart(); ratioChart();
     btChart(0); detailTable(); renderRules();
     tickCountdown();
+    navPad();
+    /* 带 #锚点 进来时档案还没到手，页面是个空壳，浏览器那一下跳转会落在错位置
+       ⇒ 表格真正撑开之后再对齐一次。这一下不做滑动（临时把 smooth 关掉）：
+       人家的意图是「直接到这一段」，不是看一段滚动动画。 */
+    if(first && location.hash){
+      const t = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+      if(t && t.classList.contains('nav-t')){
+        const root = document.documentElement, sb = root.style.scrollBehavior;
+        root.style.scrollBehavior = 'auto'; t.scrollIntoView(); root.style.scrollBehavior = sb;
+      }
+    }
+    markNav(); /* 内容撑开之后各段位置变了，高亮跟着重算一次 */
     if(!hasChart) ['Heat','Miss','Mix','Shape','Bt','BtLine'].forEach(id=>chartEmpty(id,'图表库没加载出来 · 数字照常可读'));
   }catch(err){
     $('hpState').textContent = '暂时读不到开奖档案，稍后再刷新试试。';
@@ -1167,7 +1205,11 @@ $('btTabs').addEventListener('click', e=>{
   btChart(+b.dataset.n);
 });
 $('dtQ').addEventListener('input', e=>{ DT.q=e.target.value; DT.page=0; detailTable(); });
-$('dtSize').addEventListener('change', e=>{ DT.size=+e.target.value; DT.page=0; detailTable(); });
+$('dtSize').addEventListener('click', e=>{
+  const b=e.target.closest('.sg'); if(!b) return;
+  [...$('dtSize').querySelectorAll('.sg')].forEach(x=>x.classList.toggle('on', x===b));
+  DT.size=+b.dataset.n; DT.page=0; detailTable();
+});
 $('dtPrev').addEventListener('click', ()=>{ DT.page--; detailTable(); });
 $('dtNext').addEventListener('click', ()=>{ DT.page++; detailTable(); });
 $('dtCsv').addEventListener('click', exportCsv);
@@ -1178,6 +1220,27 @@ $('donateLink').addEventListener('click', donateOpen);
 $('donateClose').addEventListener('click', ()=> dm.classList.remove('open'));
 dm.addEventListener('click', e=>{ if(e.target===dm) dm.classList.remove('open'); });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') dm.classList.remove('open'); });
+
+/* 高亮取「最后滚过那条线的一段」，不用 IntersectionObserver：锚点是一行高的标题，
+   快速滚动时观察带会整段漏掉，高亮就停在上一格不动。 */
+const navLinks=[...$('topnav').querySelectorAll('a')];
+let navRaf=0;
+/* 窄屏上五个点会折成两行（330px 实测 46→83 高）⇒ 落点留白按导航条真实高度给，不写死 */
+function navPad(){ document.documentElement.style.setProperty('--navh', ($('topnav').offsetHeight+26)+'px'); }
+addEventListener('resize', navPad);
+function markNav(){
+  navRaf=0;
+  const line = $('topnav').getBoundingClientRect().bottom + 12;
+  let cur=navLinks[0];
+  for(const a of navLinks){
+    const t=document.getElementById(a.hash.slice(1));
+    if(t && t.getBoundingClientRect().top<=line) cur=a;
+  }
+  navLinks.forEach(a=>a.classList.toggle('on', a===cur));
+}
+addEventListener('scroll', ()=>{ if(!navRaf) navRaf=requestAnimationFrame(markNav); }, {passive:true});
+navPad();
+markNav();
 
 load(true);
 </script>
