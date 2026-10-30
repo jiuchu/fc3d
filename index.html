@@ -156,6 +156,9 @@ tbody tr:hover{background:rgba(255,255,255,.035)}
 td .b2{display:inline-grid}
 .mk{font-weight:800;font-variant-numeric:tabular-nums}
 .mk.y{color:#ff8d7a}.mk.n{color:var(--dimmer)}
+/* 每列最下面那行＝这套策略当期押的 5 注直选（开奖前算好的），撞上的那注标金 */
+.pk{margin-top:5px;font-size:.66rem;color:var(--dimmer);font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.pk b{color:var(--gold);font-weight:800}
 .money{min-width:700px}
 .money td.l{font-weight:600}
 .num{font-variant-numeric:tabular-nums}
@@ -376,7 +379,7 @@ footer a:hover{filter:brightness(1.14);transform:translateY(-1px)}
     </div>
     <div class="panel wide nav-t" id="sec-detail">
       <div class="p-head"><div class="p-title"><i></i>逐期明细</div></div>
-      <div class="p-note">金球 = 这期的号码落在该策略的 6 码池里；每列下面那行是「三个号码是否全在池中」，最后一列写的是哪套策略的 5 注直选真撞上了 · 默认最近 20 期，输期号（如 2026100）或号码（如 612）只列匹配的行</div>
+      <div class="p-note">金球 = 这期的号码落在该策略的 6 码池里；中间那行是「三个号码是否全在池中」；最下面那 5 个三位数是这套策略在开奖之前押的 5 注直选，撞上的那注标金色；最后一列汇总哪套押中、中的是哪一注 · 默认最近 20 期，输期号（如 2026100）或号码（如 612）只列匹配的行</div>
       <div class="dt-bar">
         <input class="inp" id="dtQ" type="search" placeholder="搜期号或号码，如 2026100 或 612" autocomplete="off" aria-label="搜期号或号码">
         <span class="seg" id="dtSize" role="group" aria-label="每页期数">
@@ -1085,13 +1088,14 @@ function detailTable(){
     $('btBody').innerHTML = res.rows.map(r=>{
       const w = r.num.split('').map(Number);
       const tds = Core.STRATS.map(s=> '<td>'+poolBalls(r.pool[s.k], w)
-        + '<div class="mk '+(r.hitP[s.k]?'y':'n')+'">'+(r.hitP[s.k]?'组选中':'—')+'</div></td>').join('');
+        + '<div class="mk '+(r.hitP[s.k]?'y':'n')+'">'+(r.hitP[s.k]?'组选中':'—')+'</div>'
+        + '<div class="pk">'+r.direct[s.k].map(n=>n===r.num?'<b>'+n+'</b>':n).join(' ')+'</div></td>').join('');
       const who = Core.STRATS.filter(s=>r.hitD[s.k]).map(s=>s.n);
       return '<tr><td class="num">'+r.code+'<div style="color:var(--dimmer);font-size:.7rem">'+r.date.slice(5)+'</div></td>'
         + '<td>'+balls(r.num)+'</td>'
         + '<td>'+Core.SHAPE_CN[r.shape]+'<div style="color:var(--dimmer);font-size:.7rem">和 '+r.s+'</div></td>'
         + tds
-        + '<td class="mk '+(who.length?'y':'n')+'">'+(who.length?who.join(' / '):'—')+'</td></tr>';
+        + '<td class="mk '+(who.length?'y':'n')+'">'+(who.length?who.join(' / ')+' · '+r.num:'—')+'</td></tr>';
     }).join('');
   }
   $('dtInfo').textContent = '共 '+fmt(res.total)+' 期'
