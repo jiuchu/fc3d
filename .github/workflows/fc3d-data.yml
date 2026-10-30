@@ -1,8 +1,17 @@
 # 福彩 3D 历史开奖 → data/lottery_history.json —— 号码趋势看板
 #
 # 这个仓库里只有一个数据文件，页面上所有的推荐、回测、命中率曲线都是浏览器拿这份
-# JSON 现算的，所以这条工作流只干一件事：把官网那 4700 多期重新取一遍、有新期号就推上去。
-# 不需要 secret、不需要 cookie、不需要无头浏览器 —— cwl.gov.cn 这个接口是匿名直给的。
+# JSON 现算的，所以这条工作流只干一件事：把 8000 多期历史重新取一遍、有新期号就推上去。
+# 不需要 secret、不需要 cookie、不需要无头浏览器 —— 两个源都是匿名直给的。
+#
+# 数据源（fetch_3d.mjs 里主备两条，先看主的）：
+#   主：data.17500.cn/3d_asc.txt  纯文本、一行一期、2002 年起 8,796 期。
+#   备：www.cwl.gov.cn findDrawNotice 官网接口，只回近 13 年（2013 起 4,793 期）。
+#   ⚠ 备这条从 GitHub 机房敲是 403 —— 网宿 WAF 按出口 IP/地区拦，改 UA、Referer 都没用
+#     （10-30 实测：住宅 IP 200 / Actions runner 403 / Worker 边缘回拦截页）。
+#     主这条在 Cloudflare 边缘验过不拦；GitHub runner 那一档要靠 force 那一发确认。
+#   换源时和官网逐期对过账：可比 4,793 期开奖号 0 处不同；销售额有 8 期两源不一致
+#     （差 0.5%~7%，没第三方能判谁对，只影响销量那条线），号码若哪天不一致会进 fixes 报警。
 #
 # 前置（一次性）：
 #   1. Settings → Pages → Build and deployment → Source = Deploy from a branch，
@@ -15,7 +24,7 @@
 #
 # 节拍不在这里，在 Cloudflare Worker 的 Settings → Triggers 页上（cron 是 UTC）。
 # 这条挂在他那条「全天每半小时」的闹钟上（就是驱动 jjc 畅销榜的那条），
-# 所以代码里不写 schedule 也能一天敲 48 次。48 格里真正去敲中彩网的只有
+# 所以代码里不写 schedule 也能一天敲 48 次。48 格里真正去上游取数的只有
 # 北京 21:25 之后那几格，其余每一轮由「要不要跑」挡在 checkout 之后、
 # 抓数据之前，十几秒就结束 —— 不发请求、不改文件、不触发 Pages 重建。
 #
@@ -34,7 +43,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: 勾上＝三道闸都不看，现在就去敲一次中彩网（用来验机房 IP 通不通）
+        description: 勾上＝三道闸都不看，现在就去上游取一次数（用来验这台机器能不能拿到）
         type: boolean
         default: false
 
@@ -59,13 +68,13 @@ jobs:
         with:
           node-version: '22'
 
-      # 三道闸，任一道命中就不去碰中彩网：
+      # 三道闸，任一道命中就不去碰上游：
       #   ① 档案里 asof 已经是今天（北京）→ 今天的号已经拿到了；
       #   ② 现在还没到北京 21:25 → 3D 一天一期约 21:15 公布，早去了只能取到昨天的号，
       #      而 fetch_3d.mjs 没有新期号时压根不写文件，那一格纯属白跑；
       #   ③ 距上一条 run 不足 GAP 分钟 → 防手点，手点十次就是十次真请求。
       # 手点时勾上 force 这三道一起让开 —— 存在的理由只有一个：白天也能发一发真请求，
-      # 用来判「GitHub 机房的 IP 敲中彩网通不通」。不勾就是普通手点，照样被挡。
+      # 用来判「这台 runner 到 17500 通不通」。不勾就是普通手点，照样被挡。
       # 21:25 这个点是故意留 10 分钟余量的：官方偶尔拖到 21:20 以后。取晚了不要紧，
       # 后面的 22:00、22:30 自己会补上 —— 全天闹钟一天敲 48 次，晚上还有 5 格。
       - name: 要不要跑
@@ -96,16 +105,16 @@ jobs:
           elif [ -n "$have" ] && [ "$have" = "$today" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"; echo "今天的号已经在档案里，收工"
           elif [ "$hm" -lt 2125 ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "还没到 21:25，这一格不去敲中彩网"
+            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "还没到 21:25，这一格不去取数"
           elif [ "$since" -lt "$GAP" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"; echo "距上一条不足 $GAP 分钟，这发不重敲"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # 接口改版、被 WAF 拦、只回 100 条 —— 这三种都在 fetch_3d.mjs 里 fail 掉且不写盘，
-      # 所以下一步的「有没有新期号」永远判得准。机房 IP 会不会被网宿拦没测过，
-      # 拦了这里红一格，页面读的还是仓库里上一份好档案，不会白屏。
+      # 源改版、被 WAF 拦、只回几十条 —— 这几种都在 fetch_3d.mjs 里 fail 掉且不写盘，
+      # 所以下一步的「有没有新期号」永远判得准。主源挂了会自动落回备源（官网接口），
+      # 落回那一档从机房是 403，于是这一格红 —— 页面读的仍是仓库里上一份好档案，不会白屏。
       - name: 抓取
         if: steps.need.outputs.skip != 'true'
         run: node fetch_3d.mjs
