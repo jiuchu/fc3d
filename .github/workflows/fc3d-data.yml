@@ -32,6 +32,11 @@ on:
     - cron: '40 13 * * *'      # 北京 21:40
     - cron: '10 14 * * *'      # 北京 22:10
   workflow_dispatch:
+    inputs:
+      force:
+        description: 勾上＝三道闸都不看，现在就去敲一次中彩网（用来验机房 IP 通不通）
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -59,6 +64,8 @@ jobs:
       #   ② 现在还没到北京 21:25 → 3D 一天一期约 21:15 公布，早去了只能取到昨天的号，
       #      而 fetch_3d.mjs 没有新期号时压根不写文件，那一格纯属白跑；
       #   ③ 距上一条 run 不足 GAP 分钟 → 防手点，手点十次就是十次真请求。
+      # 手点时勾上 force 这三道一起让开 —— 存在的理由只有一个：白天也能发一发真请求，
+      # 用来判「GitHub 机房的 IP 敲中彩网通不通」。不勾就是普通手点，照样被挡。
       # 21:25 这个点是故意留 10 分钟余量的：官方偶尔拖到 21:20 以后。取晚了不要紧，
       # 后面的 22:00、22:30 自己会补上 —— 全天闹钟一天敲 48 次，晚上还有 5 格。
       - name: 要不要跑
@@ -66,6 +73,7 @@ jobs:
         env:
           WF: fc3d-data.yml      # API 认的是文件名，不是 name 字段
           GAP: '20'
+          FORCE: ${{ inputs.force }}
         run: |
           today=$(TZ=Asia/Shanghai date +%F)
           have=$(node -p "try{JSON.parse(require('fs').readFileSync('$FC3D_OUT','utf8')).asof}catch(e){''}")
@@ -83,7 +91,9 @@ jobs:
           # 反过来 fail-closed 的话，一次 curl 抖动能让看板连着几天不出新号。
           case "$since" in ''|*[!0-9]*) since=9999 ;; esac
           echo "档案里 asof=$have（今天 $today）· 现在北京 $disp · 距上一条 run $since 分钟（下限 $GAP）"
-          if [ -n "$have" ] && [ "$have" = "$today" ]; then
+          if [ "$FORCE" = "true" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"; echo "手动放行：三道闸这一格都不看，直接去敲一次"
+          elif [ -n "$have" ] && [ "$have" = "$today" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"; echo "今天的号已经在档案里，收工"
           elif [ "$hm" -lt 2125 ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"; echo "还没到 21:25，这一格不去敲中彩网"
