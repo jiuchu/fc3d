@@ -166,6 +166,18 @@ td .b2{display:inline-grid}
   background:linear-gradient(135deg,rgba(255,95,67,.22),rgba(255,200,97,.15))}
 .btn:hover{transform:translateY(-2px);box-shadow:0 12px 26px -10px rgba(255,140,60,.6);border-color:var(--gold)}
 .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+/* 逐期明细那一栏的搜索/翻页/导出。次级动作一律保持普通态（描边 + 玻璃底），
+   只有「刷新全部数据」那颗是实心的 —— 满屏金色按钮等于没有主操作。 */
+.dt-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 11px}
+.dt-bar .btn{padding:8px 14px;font-size:.78rem;border-radius:10px;font-weight:500;letter-spacing:0;
+  background:var(--glass);border-color:var(--line);color:var(--dim)}
+.dt-bar .btn:hover{transform:none;box-shadow:none;border-color:rgba(255,200,97,.55);color:var(--txt)}
+.inp{background:var(--glass);border:1px solid var(--line);border-radius:10px;color:var(--txt);
+  padding:8px 12px;font-size:.79rem;font-family:inherit;min-width:224px;max-width:100%}
+.inp:focus{outline:none;border-color:rgba(255,200,97,.55)}
+select.inp{min-width:auto;cursor:pointer}
+.dt-info{font-size:.76rem;color:var(--dimmer);max-width:100%}
+.dt-none{text-align:center;color:var(--dimmer);padding:18px 0;font-size:.8rem}
 .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.28);
   border-top-color:var(--gold);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -339,7 +351,20 @@ footer a:hover{filter:brightness(1.14);transform:translateY(-1px)}
     </div>
     <div class="panel wide">
       <div class="p-head"><div class="p-title"><i></i>逐期明细</div></div>
-      <div class="p-note">金球 = 这期的号码落在该策略的 6 码池里；每列下面那行是「三个号码是否全在池中」，最后一列写的是哪套策略的 5 注直选真撞上了</div>
+      <div class="p-note">金球 = 这期的号码落在该策略的 6 码池里；每列下面那行是「三个号码是否全在池中」，最后一列写的是哪套策略的 5 注直选真撞上了 · 默认最近 20 期，输期号（如 2026100）或号码（如 612）只列匹配的行</div>
+      <div class="dt-bar">
+        <input class="inp" id="dtQ" type="search" placeholder="搜期号或号码，如 2026100 或 612" autocomplete="off" aria-label="搜期号或号码">
+        <select class="inp" id="dtSize" aria-label="每页期数">
+          <option value="20">每页 20 期</option>
+          <option value="50">每页 50 期</option>
+          <option value="100">每页 100 期</option>
+          <option value="500">每页 500 期</option>
+        </select>
+        <button class="btn" id="dtPrev">上一页</button>
+        <span class="dt-info" id="dtInfo">—</span>
+        <button class="btn" id="dtNext">下一页</button>
+        <button class="btn" id="dtCsv">导出全部 CSV</button>
+      </div>
       <div class="scroll-x"><table><thead><tr id="btHead"></tr></thead><tbody id="btBody"></tbody></table></div>
     </div>
   </div>
@@ -599,8 +624,35 @@ footer a:hover{filter:brightness(1.14);transform:translateY(-1px)}
     return out;
   }
 
+  /* 明细表分页：q 是期号或开奖号码的子串；页码越界就夹回边界 */
+  function pageDetail(detail, q, page, size){
+    const s = String(q==null?'':q).trim();
+    const all = detail.slice().reverse();
+    const hit = s ? all.filter(r=> r.code.indexOf(s)>=0 || r.num.indexOf(s)>=0) : all;
+    const n = Math.max(1, size||20);
+    const pages = Math.max(1, Math.ceil(hit.length/n));
+    const p = Math.min(Math.max(0, page||0), pages-1);
+    return {rows: hit.slice(p*n, p*n+n), total: hit.length, pages, page:p, size:n};
+  }
+
+  function csvDetail(detail){
+    const head = ['期号','日期','星期','开奖号码','形态','和值']
+      .concat(STRATS.flatMap(s=>[s.n+' 6码池', s.n+' 组选命中', s.n+' 直选5注', s.n+' 直选命中']));
+    const lines = [head.join(',')];
+    for(const r of detail){
+      /* 号码一律空格分隔：写成 012 会被 Excel 当数字吃掉前导零 */
+      const row = [r.code, r.date, r.week, r.num.split('').join(' '), SHAPE_CN[r.shape]||r.shape, r.s];
+      for(const s of STRATS)
+        row.push(r.pool[s.k].join(' '), r.hitP[s.k]?'是':'否', r.direct[s.k].join(' '), r.hitD[s.k]?'是':'否');
+      lines.push(row.join(','));
+    }
+    /* BOM：他用 Excel/WPS 直接双击打开，没有 BOM 中文列名会乱码 */
+    return '\uFEFF' + lines.join('\r\n') + '\r\n';
+  }
+
   window.FC3DCore = {STRATS, SHAPE_CN, C, parse, plan, win, missOf, theory, sumHist,
-                     backtest, rolling, directFromPool, roadPool, randomPlan, mulberry, ROADS};
+                     backtest, rolling, directFromPool, roadPool, randomPlan, mulberry, ROADS,
+                     pageDetail, csvDetail};
 })();
 </script>
 
@@ -621,6 +673,7 @@ const ch = {};
 let DATA = null, ROWS = null, BT365 = null, BTFULL = null;
 
 function fmt(n){ return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function wan(v){
   if(v==null || !isFinite(v)) return '—';
   if(v>=1e8) return (v/1e8).toFixed(2)+' 亿元';
@@ -987,20 +1040,46 @@ function btChart(n){
 }
 function f1(x){ return (Math.round(x*10)/10).toFixed(1); }
 
+/* ---------- 逐期明细：搜索 + 每页 N 期 + 翻页 ---------- */
+const DT = {q:'', page:0, size:20};
+
 function detailTable(){
-  const d = BTFULL.detail.slice(-20).reverse();
+  const res = Core.pageDetail(BTFULL.detail, DT.q, DT.page, DT.size);
+  DT.page = res.page;
   $('btHead').innerHTML = '<th>期号</th><th>开奖</th><th>形态</th>'
     + Core.STRATS.map(s=>'<th>'+s.n+'</th>').join('') + '<th>直选命中</th>';
-  $('btBody').innerHTML = d.map(r=>{
-    const tds = Core.STRATS.map(s=> '<td>'+poolBalls(r.pool[s.k], r.d)
-      + '<div class="mk '+(r.hitP[s.k]?'y':'n')+'">'+(r.hitP[s.k]?'组选中':'—')+'</div></td>').join('');
-    const who = Core.STRATS.filter(s=>r.hitD[s.k]).map(s=>s.n);
-    return '<tr><td class="num">'+r.code+'<div style="color:var(--dimmer);font-size:.7rem">'+r.date.slice(5)+'</div></td>'
-      + '<td>'+balls(r.num)+'</td>'
-      + '<td>'+Core.SHAPE_CN[r.shape]+'<div style="color:var(--dimmer);font-size:.7rem">和 '+r.s+'</div></td>'
-      + tds
-      + '<td class="mk '+(who.length?'y':'n')+'">'+(who.length?who.join(' / '):'—')+'</td></tr>';
-  }).join('');
+  if(!res.rows.length){
+    $('btBody').innerHTML = '<tr><td colspan="'+(4+Core.STRATS.length)+'" class="dt-none">没有期号或号码里含「'
+      + esc(DT.q)+'」的记录</td></tr>';
+  } else {
+    $('btBody').innerHTML = res.rows.map(r=>{
+      const w = r.num.split('').map(Number);
+      const tds = Core.STRATS.map(s=> '<td>'+poolBalls(r.pool[s.k], w)
+        + '<div class="mk '+(r.hitP[s.k]?'y':'n')+'">'+(r.hitP[s.k]?'组选中':'—')+'</div></td>').join('');
+      const who = Core.STRATS.filter(s=>r.hitD[s.k]).map(s=>s.n);
+      return '<tr><td class="num">'+r.code+'<div style="color:var(--dimmer);font-size:.7rem">'+r.date.slice(5)+'</div></td>'
+        + '<td>'+balls(r.num)+'</td>'
+        + '<td>'+Core.SHAPE_CN[r.shape]+'<div style="color:var(--dimmer);font-size:.7rem">和 '+r.s+'</div></td>'
+        + tds
+        + '<td class="mk '+(who.length?'y':'n')+'">'+(who.length?who.join(' / '):'—')+'</td></tr>';
+    }).join('');
+  }
+  $('dtInfo').textContent = '共 '+fmt(res.total)+' 期'
+    + (DT.q ? '（匹配「'+DT.q+'」）' : '（全档案，从新到旧）')
+    + ' · 第 '+(res.page+1)+' / '+res.pages+' 页';
+  $('dtPrev').disabled = res.page <= 0;
+  $('dtNext').disabled = res.page >= res.pages - 1;
+}
+
+function exportCsv(){
+  const n = BTFULL.detail.length;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([Core.csvDetail(BTFULL.detail)],
+    {type:'text/csv;charset=utf-8'}));
+  a.download = 'fc3d-逐期明细-'+ (DATA ? DATA.asofCode : '') +'-'+ n +'期.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 5000);
+  $('dtInfo').textContent = '已导出 '+fmt(n)+' 期 × '+(6+Core.STRATS.length*4)+' 列';
 }
 
 /* ---------- 奖金规则 ---------- */
@@ -1083,6 +1162,11 @@ $('btTabs').addEventListener('click', e=>{
   [...$('btTabs').children].forEach(x=>x.classList.toggle('on', x===b));
   btChart(+b.dataset.n);
 });
+$('dtQ').addEventListener('input', e=>{ DT.q=e.target.value; DT.page=0; detailTable(); });
+$('dtSize').addEventListener('change', e=>{ DT.size=+e.target.value; DT.page=0; detailTable(); });
+$('dtPrev').addEventListener('click', ()=>{ DT.page--; detailTable(); });
+$('dtNext').addEventListener('click', ()=>{ DT.page++; detailTable(); });
+$('dtCsv').addEventListener('click', exportCsv);
 const dm=$('donateModal');
 function donateOpen(e){ if(e) e.preventDefault(); dm.classList.add('open'); }
 $('donateBtn').addEventListener('click', donateOpen);
