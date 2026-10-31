@@ -787,7 +787,13 @@ function renderHero(doc){
   const r = ROWS[ROWS.length-1];
   $('heroBalls').innerHTML = r.num.split('').map(d=>'<div class="ball">'+d+'</div>').join('');
   $('heroDate').textContent = r.date + '（' + r.week + '）· 第 ' + r.code + ' 期';
-  $('heroSales').textContent = wan(r.sales);
+  /* 最新一期那行的销售额要等上游下一拍才填（抓取时是 0/空 ⇒ 落成 null），
+     只读最新一行就会一直显示「—」。所以拿「最近一期有销量的期」兜底并把这件事写出来。 */
+  if(r.sales != null) $('heroSales').textContent = wan(r.sales);
+  else {
+    const prev = ROWS.slice().reverse().find(x => x.sales != null);
+    $('heroSales').textContent = prev ? '待公布 · 上期 ' + wan(prev.sales) : '—';
+  }
   $('hpCount').textContent = fmt(ROWS.length) + ' 期';
   $('hpFirst').textContent = ROWS[0].date;
   $('hpLastCode').textContent = r.code;
